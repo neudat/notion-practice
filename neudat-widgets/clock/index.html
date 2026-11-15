@@ -1,0 +1,93 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>디지털 시계 위젯</title>
+  <style>
+    /* 화면 크기와 관계없이 간격 계산이 자연스럽도록 설정합니다. */
+    * {
+      box-sizing: border-box;
+    }
+
+    /* 노션의 작은 임베드 영역에도 알맞은 크기로 표시합니다. */
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 12px;
+      background: #f6f7fb;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    }
+
+    .clock-card {
+      width: 100%;
+      max-width: 520px;
+      padding: 28px 12px;
+      border-radius: 18px;
+      background: #1c2030;
+      color: #ffffff;
+      text-align: center;
+      box-shadow: 0 6px 20px rgba(20, 25, 45, 0.10);
+    }
+
+    .clock-label {
+      margin: 0 0 12px;
+      color: #afb8d4;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+    }
+
+    .clock-time {
+      margin: 0;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(28px, 9vw, 64px);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.04em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 360px) {
+      body { padding: 8px; }
+      .clock-card { padding: 22px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="clock-card" aria-label="현재 시간">
+    <p class="clock-label">CURRENT TIME</p>
+    <!-- 자바스크립트가 아래 텍스트를 현재 시간으로 바꿉니다. -->
+    <p id="clock" class="clock-time" role="timer">00:00:00</p>
+  </main>
+
+  <script>
+    // 현재 시간을 표시할 HTML 요소를 가져옵니다.
+    const clockElement = document.getElementById('clock');
+
+    // 숫자가 한 자리일 때 앞에 0을 붙여 두 자리로 만듭니다.
+    function twoDigits(number) {
+      return String(number).padStart(2, '0');
+    }
+
+    // 실행할 때마다 기기에 설정된 현재 시간을 새로 읽습니다.
+    function updateClock() {
+      const now = new Date();
+      const hours = twoDigits(now.getHours());   // 24시간제: 00~23
+      const minutes = twoDigits(now.getMinutes());
+      const seconds = twoDigits(now.getSeconds());
+
+      // HH:MM:SS 형식으로 화면에 표시합니다.
+      clockElement.textContent = `${hours}:${minutes}:${seconds}`;
+    }
+
+    updateClock();              // 페이지를 열자마자 시간 표시
+    setInterval(updateClock, 1000); // 이후 1초마다 현재 시간 갱신
+  </script>
+</body>
+</html>
