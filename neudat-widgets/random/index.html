@@ -1,0 +1,173 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>랜덤 뽑기 위젯</title>
+  <style>
+    /* 노션의 작은 임베드 화면에서도 보기 편한 기본 스타일 */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      background: #f8f9fc;
+      color: #252832;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+        "Malgun Gothic", sans-serif;
+    }
+
+    .widget {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #ffffff;
+      border: 1px solid #e8eaf1;
+      border-radius: 16px;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 21px;
+    }
+
+    .description {
+      margin: 0 0 18px;
+      color: #626978;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    textarea {
+      display: block;
+      width: 100%;
+      min-height: 130px;
+      padding: 12px;
+      border: 1px solid #d7dbe5;
+      border-radius: 10px;
+      background: #fff;
+      color: inherit;
+      font: inherit;
+      font-size: 14px;
+      line-height: 1.6;
+      resize: vertical;
+    }
+
+    textarea:focus-visible,
+    button:focus-visible {
+      outline: 3px solid #c8b9ff;
+      outline-offset: 2px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 13px;
+      border: 0;
+      border-radius: 10px;
+      background: #6750d9;
+      color: #fff;
+      font: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #5842c5;
+    }
+
+    .result {
+      margin-top: 16px;
+      padding: 18px 12px;
+      border-radius: 12px;
+      background: #f2f0ff;
+      text-align: center;
+    }
+
+    .result-label {
+      margin: 0 0 8px;
+      color: #66617e;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    #resultText {
+      margin: 0;
+      color: #4e3bb1;
+      font-size: clamp(20px, 5vw, 30px);
+      font-weight: 800;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+    }
+
+    /* 특히 좁은 노션 임베드 영역에서는 여백을 줄입니다. */
+    @media (max-width: 360px) {
+      body { padding: 8px; }
+      .widget { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="widget">
+    <h1>🎲 랜덤 뽑기</h1>
+    <p class="description">후보를 한 줄에 하나씩 입력한 뒤 버튼을 눌러주세요.</p>
+
+    <label for="candidates">뽑기 후보</label>
+    <textarea
+      id="candidates"
+      rows="5"
+      placeholder="예시)&#10;김사과&#10;이바나나&#10;박포도"
+    ></textarea>
+
+    <button id="drawButton" type="button">뽑기</button>
+
+    <!-- 결과가 바뀌면 화면 읽기 프로그램도 내용을 알 수 있습니다. -->
+    <section class="result" role="status" aria-live="polite" aria-atomic="true">
+      <p class="result-label">뽑기 결과</p>
+      <p id="resultText">아직 뽑지 않았어요!</p>
+    </section>
+  </main>
+
+  <script>
+    // 입력창, 버튼, 결과 표시 영역을 가져옵니다.
+    const candidatesInput = document.getElementById('candidates');
+    const drawButton = document.getElementById('drawButton');
+    const resultText = document.getElementById('resultText');
+
+    // 사용자가 '뽑기' 버튼을 누르면 실행됩니다.
+    drawButton.addEventListener('click', () => {
+      // 줄바꿈을 기준으로 나누고, 앞뒤 공백 및 빈 줄을 제거합니다.
+      const candidates = candidatesInput.value
+        .split(/\r?\n/)
+        .map((name) => name.trim())
+        .filter((name) => name !== '');
+
+      // 후보가 없을 때는 안내 문구만 표시합니다.
+      if (candidates.length === 0) {
+        resultText.textContent = '후보를 입력해 주세요!';
+        return;
+      }
+
+      // 0부터 (후보 수 - 1) 사이의 무작위 번호를 만듭니다.
+      // 후보가 1명이라면 번호가 0이므로 그 후보가 정상적으로 선택됩니다.
+      const randomIndex = Math.floor(Math.random() * candidates.length);
+
+      // 선택된 후보를 결과 영역에 크게 보여줍니다.
+      // textContent를 사용하면 입력한 글자가 HTML로 실행되지 않습니다.
+      resultText.textContent = candidates[randomIndex];
+    });
+  </script>
+</body>
+</html>
