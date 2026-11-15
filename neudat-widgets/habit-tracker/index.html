@@ -1,0 +1,253 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이번 주 해빗 트래커</title>
+  <style>
+    /* 임베드 화면의 폭에 맞춰 모든 요소의 크기를 계산합니다. */
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 12px;
+      background: #f6f7fb;
+      color: #242735;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+                   "Malgun Gothic", sans-serif;
+    }
+
+    .widget {
+      width: 100%;
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 18px;
+      border: 1px solid #e6e8f0;
+      border-radius: 16px;
+      background: #fff;
+    }
+
+    h1 { margin: 0 0 4px; font-size: 20px; }
+    .description { margin: 0 0 18px; color: #6c7180; font-size: 13px; }
+
+    .field-label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .habit-input {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #d9dce7;
+      border-radius: 10px;
+      font: inherit;
+      font-size: 15px;
+    }
+    .habit-input:focus-visible, .day input:focus-visible {
+      outline: 3px solid #cabfff;
+      outline-offset: 2px;
+    }
+
+    .week-heading {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin: 18px 0 10px;
+    }
+    .week-heading strong { font-size: 14px; }
+    .week-range { color: #777c89; font-size: 12px; }
+
+    /* 7개 날짜를 같은 너비로 배치합니다. */
+    .days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+    .day {
+      min-width: 0;
+      min-height: 86px;
+      padding: 9px 2px;
+      border: 1px solid #e8e9f1;
+      border-radius: 10px;
+      background: #fafafe;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      cursor: pointer;
+    }
+    .day-name { font-size: 13px; font-weight: 700; }
+    .day-date { font-size: 11px; color: #727888; white-space: nowrap; }
+    .day input { width: 21px; height: 21px; margin: 0; accent-color: #6954d8; cursor: pointer; }
+    .day:has(input:checked) { background: #f2efff; border-color: #bdb1ff; }
+
+    .notice {
+      margin: 12px 0 0;
+      color: #a04525;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .notice[hidden] { display: none; }
+
+    /* 특히 좁은 임베드에서는 버튼을 4개씩 나눠 누르기 편하게 합니다. */
+    @media (max-width: 360px) {
+      body { padding: 8px; }
+      .widget { padding: 14px; }
+      .days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+      .day { min-height: 78px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="widget">
+    <h1>🌱 해빗 트래커</h1>
+    <p class="description">이번 주의 작은 습관을 체크해 보세요.</p>
+
+    <label class="field-label" for="habitName">습관 이름</label>
+    <input id="habitName" class="habit-input" type="text"
+           placeholder="예: 매일 책 10분 읽기" maxlength="100" autocomplete="off">
+
+    <div class="week-heading">
+      <strong>이번 주</strong>
+      <span id="weekRange" class="week-range"></span>
+    </div>
+
+    <!-- 자바스크립트가 이번 주 월요일~일요일 체크박스를 만듭니다. -->
+    <div id="days" class="days" role="group" aria-label="이번 주 습관 완료 체크"></div>
+    <p id="storageNotice" class="notice" role="status" hidden>
+      브라우저 저장이 차단되어 있어요. 체크는 가능하지만 새로고침하면 기록이 사라질 수 있어요.
+    </p>
+  </main>
+
+  <script>
+    // 습관 이름은 계속 유지하고, 체크 기록은 '주 시작일'별로 따로 저장합니다.
+    const NAME_KEY = 'notion-habit:v1:name';
+    const WEEK_PREFIX = 'notion-habit:v1:week:';
+    const DAY_NAMES = ['월', '화', '수', '목', '금', '토', '일'];
+
+    const habitInput = document.getElementById('habitName');
+    const weekRange = document.getElementById('weekRange');
+    const daysContainer = document.getElementById('days');
+    const storageNotice = document.getElementById('storageNotice');
+
+    let currentWeekKey = '';
+    let checks = Array(7).fill(false);
+
+    // 저장소가 막혀도 화면은 계속 작동하게 예외를 처리합니다.
+    function readStorage(key) {
+      try {
+        return localStorage.getItem(key);
+      } catch (error) {
+        storageNotice.hidden = false;
+        return null;
+      }
+    }
+
+    function writeStorage(key, value) {
+      try {
+        localStorage.setItem(key, value);
+      } catch (error) {
+        storageNotice.hidden = false;
+      }
+    }
+
+    // UTC가 아닌 기기의 현지 날짜로 YYYY-MM-DD를 만듭니다.
+    function localDateKey(date) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // 일요일(getDay() === 0)도 올바르게 처리하여 월요일을 찾습니다.
+    function getMonday(date) {
+      const monday = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const daysAfterMonday = (monday.getDay() + 6) % 7;
+      monday.setDate(monday.getDate() - daysAfterMonday);
+      return monday;
+    }
+
+    // 해당 주에 저장된 체크 상태만 가져옵니다.
+    function loadWeekChecks(weekKey) {
+      const saved = readStorage(WEEK_PREFIX + weekKey);
+      if (saved === null) return Array(7).fill(false);
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length === 7) {
+          return parsed.map(value => value === true);
+        }
+      } catch (error) {
+        // 저장된 데이터가 잘못되어 있으면 모두 미완료 상태로 시작합니다.
+      }
+      return Array(7).fill(false);
+    }
+
+    function renderWeek(monday) {
+      daysContainer.replaceChildren();
+      const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+      weekRange.textContent = `${monday.getMonth() + 1}/${monday.getDate()} ~ ${sunday.getMonth() + 1}/${sunday.getDate()}`;
+
+      for (let index = 0; index < 7; index++) {
+        // 현지 달력 날짜를 하루씩 더합니다. (월말/연말도 자동 처리)
+        const date = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + index);
+        const label = document.createElement('label');
+        label.className = 'day';
+
+        const name = document.createElement('span');
+        name.className = 'day-name';
+        name.textContent = DAY_NAMES[index];
+
+        const dateText = document.createElement('span');
+        dateText.className = 'day-date';
+        dateText.textContent = `${date.getMonth() + 1}/${date.getDate()}`;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = checks[index];
+        checkbox.setAttribute('aria-label', `${localDateKey(date)} ${DAY_NAMES[index]}요일 완료`);
+
+        checkbox.addEventListener('change', () => {
+          // 날짜가 바뀌어 새 주가 되었을 때 이전 주 기록이 섞이지 않게 합니다.
+          if (localDateKey(getMonday(new Date())) !== currentWeekKey) {
+            showCurrentWeek();
+            return;
+          }
+          checks[index] = checkbox.checked;
+          writeStorage(WEEK_PREFIX + currentWeekKey, JSON.stringify(checks));
+        });
+
+        label.append(name, dateText, checkbox);
+        daysContainer.append(label);
+      }
+    }
+
+    // 같은 주라면 그대로 두고, 새 주가 되면 그 주의 기록을 따로 불러옵니다.
+    function showCurrentWeek() {
+      const monday = getMonday(new Date());
+      const weekKey = localDateKey(monday);
+      if (weekKey === currentWeekKey) return;
+      currentWeekKey = weekKey;
+      checks = loadWeekChecks(weekKey);
+      renderWeek(monday);
+    }
+
+    // 처음 열 때 습관 이름과 이번 주의 체크 기록을 복원합니다.
+    const savedName = readStorage(NAME_KEY);
+    if (savedName !== null) habitInput.value = savedName;
+    showCurrentWeek();
+
+    // 습관 이름을 입력할 때마다 저장합니다.
+    habitInput.addEventListener('input', () => {
+      writeStorage(NAME_KEY, habitInput.value);
+    });
+
+    // 페이지를 오래 열어 두어도 주가 바뀌면 체크박스를 새 주로 교체합니다.
+    window.setInterval(showCurrentWeek, 60000);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) showCurrentWeek();
+    });
+  </script>
+</body>
+</html>
+habit-tracker/
